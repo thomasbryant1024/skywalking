@@ -76,5 +76,6 @@ public final class Tags {
 
     public static final class HTTP {
         public static final StringTag METHOD = new StringTag(10, "http.method");
+        public static final StringTag HTTP_RESPOND = new StringTag(11, "http.respond");
     }
 }

@@ -18,24 +18,29 @@
 
 package org.apache.skywalking.apm.plugin.spring.resttemplate.sync;
 
-import java.lang.reflect.Method;
-import java.net.URI;
 import org.apache.skywalking.apm.agent.core.boot.ServiceManager;
 import org.apache.skywalking.apm.agent.core.conf.Config;
 import org.apache.skywalking.apm.agent.core.context.ContextCarrier;
+import org.apache.skywalking.apm.agent.core.context.ContextManager;
 import org.apache.skywalking.apm.agent.core.context.OperationNameFormatService;
 import org.apache.skywalking.apm.agent.core.context.tag.Tags;
+import org.apache.skywalking.apm.agent.core.context.trace.AbstractSpan;
 import org.apache.skywalking.apm.agent.core.context.trace.SpanLayer;
 import org.apache.skywalking.apm.agent.core.plugin.interceptor.enhance.EnhancedInstance;
-import org.apache.skywalking.apm.agent.core.context.ContextManager;
-import org.apache.skywalking.apm.agent.core.context.trace.AbstractSpan;
 import org.apache.skywalking.apm.agent.core.plugin.interceptor.enhance.InstanceMethodsAroundInterceptor;
 import org.apache.skywalking.apm.agent.core.plugin.interceptor.enhance.MethodInterceptResult;
 import org.apache.skywalking.apm.network.trace.component.ComponentsDefine;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+
+import java.lang.reflect.Method;
+import java.net.URI;
 
 public class RestExecuteInterceptor implements InstanceMethodsAroundInterceptor {
+
     private OperationNameFormatService nameFormatService;
+
+    public static final String REST_TEMPLATE_RESPONSE_COLLECT_SWITCH = "plugin.resttemplate.collect_http_response";
 
     @Override
     public void beforeMethod(EnhancedInstance objInst, Method method, Object[] allArguments, Class<?>[] argumentsTypes,
@@ -63,6 +68,18 @@ public class RestExecuteInterceptor implements InstanceMethodsAroundInterceptor 
     @Override
     public Object afterMethod(EnhancedInstance objInst, Method method, Object[] allArguments, Class<?>[] argumentsTypes,
         Object ret) throws Throwable {
+        // set span response tag
+        AbstractSpan span = ContextManager.activeSpan();
+        if (ret != null
+                && Boolean.TRUE.toString().equals(System.getProperty(REST_TEMPLATE_RESPONSE_COLLECT_SWITCH))) {
+            if (ret instanceof ResponseEntity) {
+                Object responds = ((ResponseEntity) ret).getBody();
+                Tags.HTTP.HTTP_RESPOND.set(span, responds == null ? "" : responds.toString());
+            } else {
+                Tags.HTTP.HTTP_RESPOND.set(span, ret.toString());
+            }
+            SpanLayer.asHttp(span);
+        }
         ContextManager.stopSpan();
         return ret;
     }
